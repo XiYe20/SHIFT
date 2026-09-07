@@ -1,0 +1,213 @@
+##############################
+# 1. Experiment & Logging
+##############################
+project_name: "SVD-DAVIS-SHIFT"       # High-level project name
+exp_name: "davis_svd_shift_ic1lc1_dynamic_awsft_max0001_ramup_5epochs"                # Specific experiment/run name
+save_dir: "/path/to/checkpoints"
+
+report_to: "tensorboard"             # "tensorboard" or "wandb"
+log_val_video_batch_interval: 64
+verbose: false
+debug_mode: false                     # Extra visualizations / debug behavior
+visualize_examples: false            # used when debug_mode is True
+limit_val_batches: 40               # used when debug_mode is True
+limit_train_batches: 80             # used when debug_mode is True
+seed: 0
+
+##############################
+# 2. Hardware & Distributed Setup
+##############################
+num_nodes: 8
+gpus_per_node: 8
+
+use_tf32: true                       # Enable TF32 for faster matmuls
+precision: "bf16"                    # ["32", "bf16"]
+
+# DeepSpeed / Distributed strategy
+use_deepspeed: true                  # Enable DeepSpeed ZeRO
+deepspeed_stage: 2                   # 1, 2, or 3 (3 can be slow)
+cpu_offload: false                    # ZeRO-2/3 CPU offload
+
+use_flash_attention: true
+use_xformers: false                  # Not supported for now
+
+##############################
+# 3. Checkpointing & OSS Storage
+##############################
+lora_checkpoint_every_n_epochs: 1
+
+
+##############################
+# 4. Model & Diffusion Settings
+##############################
+model_name: "stable-video-diffusion"
+pretrained_svd_path: "/path/to/models--stabilityai--stable-video-diffusion-img2vid-xt/snapshots/9e43909513c6714f1bc78bcb44d96e733cd242aa"
+pretrained_sft_lora_path: null
+
+num_inference_steps: 25              # Sampling steps for SVD
+num_training_steps: 1000             # (Unused by Lightning, but informative)
+
+target_fps: 14
+target_vid_size: [24, 320, 576]      # [T, H, W]
+vid_data_type: "mp4"
+
+conditioning_dropout_prob: 0.1       # dropout prob for classifier free guidance training
+##############################
+# 5. LoRA Settings for UNet
+##############################
+lora_adapter_name: "motion_adapter"
+only_lora_on_temporal_module: true
+lora_precision: "bfloat16"           # ["fp32", "bfloat16", "fp16"]
+
+lora_config:
+  r: 32
+  lora_alpha: 32
+  init_lora_weights: "gaussian"
+  target_modules: ["to_k", "to_q", "to_v", "to_out.0"]
+gradnorm_group_prefix_regex: "^(.*)\\.temporal_transformer_blocks\\.\\d+\\."
+log_grad_norm_every_steps: 10
+resume_from_checkpoint: null     # Path to .ckpt if resuming
+
+##############################
+# 11. Reward Model Configs (IC & LC)
+##############################
+train_reward_models: False           # True to finetune reward models
+
+# Instantaneous Consistency (IC) Reward Model
+ic_reward_model_config:
+  encoder_type: "vit"  # or "resnet"
+  resnet_discriminator_config:
+    raft_cfg_file: '/path/to/sea_raft_checkpoints/spring-M.json'
+    raft_ckpt_file: '/path/to/sea_raft_checkpoints/Tartan-C-T-TSKH-spring540x960-M.pth'
+    flow_resent_backbone: "resnet34"
+    flow_resent_in_ch: 2
+    flow_resent_out_dim: 256
+    flow_resent_mlp_hidden: [256, 64]
+    flow_resent_pretrained_backbone: False
+    flow_resent_temporal_weighted: False
+    flow_resent_dropout: 0.1
+    pretrained_resnet_ckpt: null
+
+  vit_discriminator_config:
+    raft_cfg_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/spring-M.json"
+    raft_ckpt_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/Tartan-C-T-TSKH-spring540x960-M.pth"
+    vit_size: "base"
+    vit_ch_in: 2 
+    vit_in_img_size: [320, 576]
+    vit_temporal_weighted: False
+    vit_dropout: 0.1
+    vit_attn_dropout: 0.0
+    vit_pool: "cls"
+  pretrained_ckpt: '/path/to/checkpoints/DAVIS_IC_Reward_Vit_Base_24x320x576_fps14_correct/ic_discriminator_train_config-2026-01-09T12-16-48/ic_discriminator/ic_discriminator-501.ckpt'
+  # pretrained_ckpt: '/path/to/checkpoints/DAVIS_Pretrain_IC_Reward_24x320x576_fps14/ic_discriminator_train_config-2025-12-02T01-33-31/ic_discriminator/ic_discriminator-31020.ckpt'
+
+  reward_weight: 1.0
+  sigmoid_squeeze_reward: False
+
+# Long-term Consistency (LC) Reward Model
+lc_reward_model_config:
+  discriminator_config:
+    pretrain_cotracker_ckpt_file: '/path/to/cotracker_checkpoints/scaled_offline.pth'
+    # pretrain_cotracker_ckpt_file: null
+    spatio_query_method: 'Random'
+    time_query_method: 'First'
+    max_num_queries: 1024
+    tracking_num_iters: 4
+    track_former_input_dim: 1110
+  pretrained_ckpt: '/path/to/checkpoints/DAVIS_SVD_Pretrain_new_tracker_LC_Reward_24x320x576_fps14/lc_discriminator_train_config-2026-01-20T15-45-37/lc_discriminator/lc_discriminator-1000.ckpt'
+  reward_weight: 1.0
+  sigmoid_squeeze_reward: False
+
+vbench_appearance_advantage_weight: 0.
+
+##############################
+# 6. Data & Dataloader Settings
+##############################
+# Dataset paths
+train_video_path_json: "./train_davis_videos.json"
+val_video_path_json: "./val_davis_videos.json"
+videos_root_dir: "/path/to/TempFolder/correct_processed_320x576x24_fps14.tar.gz"
+
+batch_size: 5                    # Per-GPU batch size
+num_workers: 8
+
+reward_model_batch_multiplier: 1 # batch_size for reward_model training is batch_size*reward_model_batch_multiplier
+reward_model_d_to_g: 1 # GAN balance: reward model steps per UNet optimizer step (per buffer)
+
+# Buffer / chunked sampling
+buffer_device: "cpu"
+buffer_size: 640                     # Prefer divisible by world size and batch_size; in terms of example num (not batch); normally, set to be multiplier of world_size*batch_size
+# !!!for passes_per_buffer > 1, the equivalent real_vid SFT epoch is passes_per_buffer * num_epochs!!!. Thus, if we want to make a fair comparison with plain SFT model, we should take passes_per_buffer into account.
+passes_per_buffer: 10                # Number of training passes per buffer before refresh
+
+##############################
+# 7. Data Collection (On-policy Sampling) for SHIFT
+##############################
+sample_noise_aug_strength: 0.02
+
+num_sample_videos_per_prompt: 8     # P: total samples per prompt in buffer
+sample_collect_group_size: 2         # Group size along P during collection; controls collect-time memory. On H-20, safe sample_collect_group_size*batch_size is 10, otherwise, we will encounter sdpa kernel error
+
+sample_min_guidance_scale: 1.0
+sample_max_guidance_scale: 3.0
+sample_decode_chunk_size: 8
+sample_do_classifier_free_guidance: True
+
+##############################
+# 8. SHIFT / Advantage & Loss Weights
+##############################
+advantage_norm_with_std: False
+adv_clip_max: 10.0                   # Clip threshold for advantages
+
+min_sft_loss_lambda: 1.0             # minimum Weight for normal SFT loss
+aw_sft_loss_lambda: 0.001              # (Legacy) Fixed weight for advantage-weighted SFT loss
+# If you want a linear ramp like an LR scheduler (0 -> max):
+# - Set `max_aw_sft_loss_lambda` (the plateau/max value)
+# - Set `aw_sft_loss_rampup_epochs` (preferred; converted to optimizer steps), OR `aw_sft_loss_rampup_steps`
+max_aw_sft_loss_lambda: null         # Max/plateau value for aw_sft loss weight (null disables ramp; uses aw_sft_loss_lambda)
+aw_sft_loss_rampup_epochs: 0       # Linearly increase from 0->max over this many epochs (0 disables ramp; immediate max)
+# aw_sft_loss_rampup_steps: 0         # Optional: directly specify ramp length in optimizer steps (overrides rampup_epochs)
+asymmetric_grpo: False                # turn on dynamic asmmetric advantage weighted sft_loss_lambda: max(0, A) + min_sft_loss_lambda; otherwise, sft_loss_lambda = min_sft_loss_lambda
+
+match_sigmas: True                   # If we exactly match the sampled random timesteps/random noise for both sft loss terms.
+##############################
+# 9. Optimization & Scheduler
+##############################
+optimizer: "adamw"
+lr: 1.0e-5
+beta1: 0.9
+beta2: 0.95
+weight_decay: 0.01
+
+accum_grad_steps: 1
+gradient_clip: 1.0                   # 0.0 = no clipping; if >0, max norm
+gradient_clip_algorithm: "norm"
+
+scheduler: "linear_warmup"           # "stepLR" or "linear_warmup"
+warmup_steps: 20
+
+max_epochs: 9
+
+##############################
+# 9.1 Reward Model GAN training Optimization & Scheduler
+##############################
+ic_reward_model_lr: 1.0e-5
+ic_reward_model_beta1: 0.9
+ic_reward_model_beta2: 0.95
+ic_reward_model_weight_decay: 0.01
+
+lc_reward_model_lr: 1.0e-5
+lc_reward_model_beta1: 0.9
+lc_reward_model_beta2: 0.95
+lc_reward_model_weight_decay: 0.01
+
+# EMA for reward model
+reward_model_ema: true
+reward_model_ema_decay: 0.99
+reward_model_use_ema_for_diffusion: true
+
+##############################
+# 10. Validation Strategy
+##############################
+val_check_interval: 1.0              # Fraction of epoch or number of steps
+check_val_every_n_epoch: 1          # Run validation every N epochs

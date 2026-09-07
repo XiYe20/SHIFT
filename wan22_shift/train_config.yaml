@@ -1,0 +1,163 @@
+# --------------------------
+# WAN2.2 SHIFT
+# --------------------------
+project_name: "WAN-WISA80K-SHIFT-480x832x49-25"
+exp_name: "aw-sft001-IC1LC1-GAN"
+save_dir: "/path/to/checkpoints"
+report_to: "tensorboard"
+seed: 0
+
+debug_mode: false
+limit_train_batches: 24
+limit_val_batches: 24
+
+num_nodes: 16
+gpus_per_node: 8
+use_tf32: true
+precision: "bf16"
+
+# Strategy
+use_deepspeed: true
+deepspeed_stage: 2
+cpu_offload: false
+use_flash_attention: true
+use_xformers: false
+
+# WAN2.2 model
+pretrained_wan_path: "/path/to/models--Wan-AI--Wan2.2-TI2V-5B-Diffusers/snapshots/b8fff7315c768468a5333511427288870b2e9635"
+pretrained_sft_lora_path: null
+sigma_shift: 5
+max_sequence_length: 512
+
+# Data
+train_video_path_json: "/path/to/wisa-deformation-train_val-json_files/wisa80k_deformation_480x832x49_fps24_25steps_train.json"
+val_video_path_json: "/path/to/wisa-deformation-train_val-json_files/wisa80k_deformation_480x832x49_fps24_25steps_val.json"
+videos_root_dir: "/path/to/deformation_processed_480x832x49_fps24_25steps_5555.tar.gz"
+target_vid_size: [49, 480, 832]
+target_fps: 24
+vid_data_type: "mp4"
+num_workers: 16
+
+# --------------------------
+# Sampling config (ALIGNED with wan22_pipeline_config.yaml)
+# --------------------------
+sampling:
+  target_fps: 24
+  target_size: [49, 480, 832]
+  num_inference_steps: 25
+  guidance_scale: 5.0
+  negative_prompt: "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+
+# LoRA
+lora_adapter_name: "motion_lora"
+lora_precision: "bfloat16"
+lora_config:
+  r: 32
+  lora_alpha: 32
+  init_lora_weights: "gaussian"
+  target_modules: ["to_k", "to_q", "to_v", "to_out.0"]
+
+resume_from_checkpoint: null
+lora_checkpoint_every_n_epochs: 1
+
+# Optim
+optimizer: "adamw"
+lr: 1.0e-5
+beta1: 0.9
+beta2: 0.95
+weight_decay: 0.0
+accum_grad_steps: 1
+gradient_clip: 1.0
+scheduler: "linear_warmup"
+warmup_steps: 20
+max_epochs: 10
+
+# --------------------------
+# SHIFT buffer (latents)
+# --------------------------
+buffer_device: "cpu"
+batch_size: 2
+buffer_size: 512
+passes_per_buffer: 10
+buffer_video_downsample_ratio: 1
+
+# on-policy sampling for rewards (pipeline sampling)
+num_sample_videos_per_prompt: 8
+sample_collect_group_size: 2
+
+# advantage
+advantage_norm_with_std: false
+pos_adv_lambda: 1.0
+adv_clip_max: 10.0
+
+# loss weights
+min_sft_loss_lambda: 1.0
+aw_sft_loss_lambda: 0.01
+asymmetric_grpo: false
+match_sigmas: true
+
+# Validation (sampling is expensive; keep it sparse)
+val_check_interval: 1.0
+check_val_every_n_epoch: 10
+
+# --------------------------
+# Reward models (fill paths!)
+# --------------------------
+train_reward_models: true
+
+ic_reward_model_config:
+  encoder_type: "vit"
+  resnet_discriminator_config:
+    raft_cfg_file: '/path/to/sea_raft_checkpoints/spring-M.json'
+    raft_ckpt_file: '/path/to/sea_raft_checkpoints/Tartan-C-T-TSKH-spring540x960-M.pth'
+    flow_resent_backbone: "resnet34"
+    flow_resent_in_ch: 2
+    flow_resent_out_dim: 256
+    flow_resent_mlp_hidden: [256, 64]
+    flow_resent_pretrained_backbone: false
+    flow_resent_temporal_weighted: false
+    flow_resent_dropout: 0.1
+    pretrained_resnet_ckpt: null
+
+  vit_discriminator_config:
+    raft_cfg_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/spring-M.json"
+    raft_ckpt_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/Tartan-C-T-TSKH-spring540x960-M.pth"
+    vit_size: "base"
+    vit_ch_in: 2
+    vit_in_img_size: [480, 832]
+    vit_temporal_weighted: false
+    vit_dropout: 0.1
+    vit_attn_dropout: 0.0
+    vit_pool: "cls"
+    in_img_downsample_ratio: 1 #downsample the large input resolution by 2
+  pretrained_ckpt: "/path/to/checkpoints/Wisa_deformation_IC_Reward_Vit_Base_480x832x49_fps24_25steps/ic_discriminator_train_config-2026-02-20T15-09-47/ic_discriminator/ic_discriminator-3000.ckpt"
+  reward_weight: 1.0
+  sigmoid_squeeze_reward: false
+
+lc_reward_model_config:
+  discriminator_config:
+    pretrain_cotracker_ckpt_file: '/path/to/cotracker_checkpoints/scaled_offline.pth'
+    # pretrain_cotracker_ckpt_file: null
+    spatio_query_method: 'Random'
+    time_query_method: 'First'
+    max_num_queries: 1024
+    tracking_num_iters: 4
+    track_former_input_dim: 1110
+  pretrained_ckpt: "/path/to/checkpoints/Wisa_deformation_LC_Reward_480x832x49_fps24_25steps/lc_discriminator_train_config-2026-02-19T20-49-59/lc_discriminator/lc_discriminator-2000.ckpt"
+  reward_weight: 1.0
+  sigmoid_squeeze_reward: false
+
+reward_model_ema: true
+reward_model_ema_decay: 0.99
+reward_model_use_ema_for_diffusion: true
+
+# ----- reward model GAN update -----
+reward_model_batch_multiplier: 1
+reward_model_d_to_g: 1.0
+
+
+# ----- gradnorm logging -----
+log_grad_norm_every_steps: 10
+# You may need to adjust this depending on WAN denoiser param names
+gradnorm_group_prefix_regex: "^(blocks\\.\\d+)\\."
+

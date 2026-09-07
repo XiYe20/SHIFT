@@ -1,0 +1,44 @@
+output_dir: "/path/to/checkpoints/WISA80K_Deformation_IC_Reward_Vit_Base_49x704x1280_fps24_ds2"
+
+ic_loss_config:
+  encoder_type: 'vit'
+  resnet_discriminator_config:
+    raft_cfg_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/spring-M.json"
+    raft_ckpt_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/Tartan-C-T-TSKH-spring540x960-M.pth"
+    flow_resent_backbone: "resnet34"
+    flow_resent_in_ch: 2
+    flow_resent_out_dim: 256
+    flow_resent_mlp_hidden: [256, 64]
+    flow_resent_pretrained_backbone: False
+    flow_resent_temporal_weighted: False
+    flow_resent_dropout: 0.1
+    pretrained_resnet_ckpt: null
+  vit_discriminator_config:
+    raft_cfg_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/spring-M.json"
+    raft_ckpt_file: "/path/to/sea_raft_checkpoints/sea_raft_checkpoints/Tartan-C-T-TSKH-spring540x960-M.pth"
+    vit_size: "base"
+    vit_ch_in: 2 
+    vit_in_img_size: [320, 576]
+    vit_temporal_weighted: False
+    vit_dropout: 0.1
+    vit_attn_dropout: 0.0
+    vit_pool: "cls"
+    in_img_downsample_ratio: 2 #downsample the large input resolution by 2
+  real_video_dir: "/local_workspace/wisa80k_correct/processed_704x1280x49_fps24/deformation/real_videos"
+  fake_video_dir: "/local_workspace/wisa80k_correct/processed_704x1280x49_fps24/deformation/generated_videos"
+learning_rate:    2e-4
+train_batch_size: 4 #64 for resnet34 (davis), 6 for vit (davis), 4 for vit (wisa80k-49frames),
+gradient_accumulation_steps: 4
+
+max_train_epoch:      500
+max_train_steps:      -1
+checkpointing_epochs: 5
+checkpointing_steps:  -1
+
+validation_steps:       -1
+validation_epochs:       1
+
+global_seed: 42
+mixed_precision: 'bf16'
+
+is_debug: false

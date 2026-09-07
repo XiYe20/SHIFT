@@ -1,0 +1,75 @@
+# Model settings
+model_name: "stable-video-diffusion"
+num_inference_steps: 25
+num_training_steps: 1000
+
+num_nodes: 2
+gpus_per_node: 8
+
+# Datasets
+train_video_path_json: "/path/to/MotionAlignmentVDM/svd_sft/train_davis_videos.json"
+val_video_path_json: "/path/to/MotionAlignmentVDM/svd_sft/val_davis_videos.json"
+videos_root_dir: "/path/to/dataset/davis_2017_real_videos_seq"
+target_vid_size: [24, 320, 576]
+target_fps: 24
+vid_data_type: "mp4"
+num_workers: 16
+
+# Optimization settings
+optimizer: "adamw"
+lr: 1.0e-5
+beta1: 0.9
+beta2: 0.95
+batch_size: 6
+accum_grad_steps: 1
+gradient_clip: 1.0 #0.0 for no clipping, if positive, it is the max norm
+gradient_clip_algorithm: "norm"
+conditioning_dropout_prob: 0.1
+
+# Training strategy
+precision: "bf16" #['32', 'bf16']
+max_epochs: 1000
+log_val_video_batch_interval: 64
+
+# Memory optimization settings
+use_deepspeed: true  # Set to true to enable DeepSpeed ZeRO-3
+use_flash_attention: true
+use_xformers: false # not supported for now
+
+# DeepSpeed specific settings (optional overrides)
+deepspeed_stage: 2  # 1, 2, or 3, (stage3 is too slow)
+cpu_offload: true
+
+report_to: "tensorboard"  # or "tensorboard"
+# Paths
+save_dir: "/path/to/checkpoints"
+
+
+# Scheduler settings
+scheduler: "linear_warmup"
+warmup_steps: 20
+
+# Model-specific settings
+vae_decode_chunk_size: 8
+
+# Lora config
+lora_adapter_name: "motion_adapter"
+only_lora_on_temporal_module: true
+lora_precision: "bfloat16" # options: ["fp32", "bfloat16", "fp16"]
+lora_config:
+  r: 32
+  lora_alpha: 32
+  init_lora_weights: "gaussian"
+  target_modules: ["to_k", "to_q", "to_v", "to_out.0"]
+resume_from_checkpoint: null
+
+# Misc
+use_tf32: true
+seed: 0
+project_name: "SVD-DAVIS-SFT"
+exp_name: "env_debug" #name of the experiment, add information, like datetime
+lora_checkpoint_every_n_epochs: 1
+
+val_check_interval: 1.0
+check_val_every_n_epoch: 10
+verbose: false

@@ -1,0 +1,79 @@
+# Model settings
+pretrained_wan_path: "/path/to/models--Wan-AI--Wan2.2-TI2V-5B-Diffusers/snapshots/b8fff7315c768468a5333511427288870b2e9635"
+num_inference_steps: 25 # This also determines the discrete sigmas used during Finetuning!!!
+sigma_shift: 5
+
+debug_mode: true
+debug_train_num_batches: 4 #per_gpu
+debug_val_num_batches: 4
+
+num_nodes: 1
+gpus_per_node: 8
+
+# Datasets
+train_video_path_json: "/path/to/wisa-deformation-train_val-json_files/wisa80k_deformation_480x832x49_fps24_25steps_train.json"
+val_video_path_json: "/path/to/wisa-deformation-train_val-json_files/wisa80k_deformation_480x832x49_fps24_25steps_val.json"
+videos_root_dir: "/path/to/deformation_processed_480x832x49_fps24_25steps_5555.tar.gz"
+target_vid_size: [49, 480, 832]
+target_fps: 24
+vid_data_type: "mp4"
+num_workers: 16
+
+# Optimization settings
+optimizer: "adamw"
+lr: 1.0e-5
+beta1: 0.9
+beta2: 0.95
+batch_size: 2
+accum_grad_steps: 1
+gradient_clip: 1.0 #0.0 for no clipping, if positive, it is the max norm
+gradient_clip_algorithm: "norm"
+conditioning_dropout_prob: 0.1
+
+# Training strategy
+precision: "bf16" #['32', 'bf16']
+max_epochs: 100
+log_val_video_batch_interval: 64
+
+# Memory optimization settings
+use_deepspeed: true  # Set to true to enable DeepSpeed ZeRO-3
+use_flash_attention: true
+use_xformers: false # not supported for now
+
+# DeepSpeed specific settings (optional overrides)
+deepspeed_stage: 2  # 1, 2, or 3, (stage3 is too slow)
+use_deepspeed_adam: false
+cpu_offload: false
+
+report_to: "tensorboard"  # or "tensorboard"
+# Paths
+save_dir: "/local_workspace/checkpoints"
+
+
+# Scheduler settings
+scheduler: "linear_warmup"
+warmup_steps: 20
+
+# Model-specific settings
+vae_decode_chunk_size: 8
+
+# Lora config
+lora_adapter_name: "motion_lora"
+lora_precision: "bfloat16" # options: ["fp32", "bfloat16", "fp16"]
+lora_config:
+  r: 32
+  lora_alpha: 32
+  init_lora_weights: "gaussian"
+  target_modules: ["to_k", "to_q", "to_v", "to_out.0"]
+resume_from_checkpoint: null
+
+# Misc
+use_tf32: true
+seed: 0
+project_name: "WAN-WISA80K-SFT-480x832x49-25"
+exp_name: "sft" #name of the experiment, add information, like datetime
+lora_checkpoint_every_n_epochs: 1
+
+val_check_interval: 1.0
+check_val_every_n_epoch: 10
+verbose: false

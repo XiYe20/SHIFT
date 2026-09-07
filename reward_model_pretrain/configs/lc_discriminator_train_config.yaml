@@ -1,0 +1,31 @@
+output_dir: "/path/to/checkpoints/DAVIS_Pretrain_LC_Reward_24x320x576_fps14"
+
+lc_loss_config:
+  discriminator_config:
+    pretrain_cotracker_ckpt_file: '/path/to/cotracker_checkpoints/scaled_offline.pth'
+    # pretrain_cotracker_ckpt_file: null
+    spatio_query_method: 'Random'
+    time_query_method: 'First'
+    max_num_queries: 1024
+    tracking_num_iters: 4
+    track_former_input_dim: 1110
+  real_video_dir: "/local_workspace/correct_processed_320x576x24_fps14/real_videos"
+  fake_video_dir: "/local_workspace/correct_processed_320x576x24_fps14/generated_videos"
+
+learning_rate:    2e-4
+train_batch_size: 6
+num_workers: 4
+gradient_accumulation_steps: 4
+
+max_train_epoch:      500
+max_train_steps:      -1
+checkpointing_epochs: 1
+checkpointing_steps:  -1
+
+validation_steps:       -1
+validation_epochs:       1
+
+global_seed: 42
+mixed_precision: 'bf16'
+
+is_debug: false
